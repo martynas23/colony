@@ -27,7 +27,6 @@ local InputDialog = require("ui/widget/inputdialog")
 local logger = require("logger")
 local _ = require("gettext")
 local T = require("ffi/util").template
-local WeatherAPI = require("weather_api")
 local WeatherUtils = require("weather_utils")
 
 local WeatherLockscreen = WidgetContainer:extend {
@@ -505,20 +504,12 @@ function WeatherLockscreen:patchScreensaver()
 end
 
 -- Weather API functions
-function WeatherLockscreen:fetchWeatherData()
-    return WeatherAPI:fetchWeatherData(self)
-end
-
 function WeatherLockscreen:formatHourLabel(hour, twelve_hour_clock)
     return WeatherUtils:formatHourLabel(hour, twelve_hour_clock)
 end
 
 function WeatherLockscreen:getMoonPhaseIcon(moon_phase)
     return WeatherUtils:getMoonPhaseIcon(moon_phase)
-end
-
-function WeatherLockscreen:getIconPath(icon_url_from_api)
-    return WeatherAPI:getIconPath(icon_url_from_api)
 end
 
 function WeatherLockscreen:saveWeatherCache(weather_data)
@@ -602,67 +593,11 @@ function WeatherLockscreen:createHeaderWidgets(header_font_size, header_margin, 
     }
 end
 
-function WeatherLockscreen:createFallbackWidget()
-    logger.dbg("WeatherLockscreen: Creating fallback icon")
-
-    local icon_size = Screen:scaleBySize(WEATHER_ICON_SIZE)
-
-    local current_hour = tonumber(os.date("%H"))
-    local is_daytime = current_hour >= 6 and current_hour < 18
-
-    local icon_filename = is_daytime and "sun.svg" or "moon.svg"
-    local icon_path = DataStorage:getDataDir() .. "/icons/" .. icon_filename
-
-    local f = io.open(icon_path, "r")
-    if f then
-        f:close()
-    else
-        return nil
-    end
-
-    local icon_widget = ImageWidget:new {
-        file = icon_path,
-        width = icon_size,
-        height = icon_size,
-        alpha = true,
-        original_in_nightmode = false
-    }
-
-    return CenterContainer:new {
-        dimen = Screen:getSize(),
-        VerticalGroup:new {
-            align = "center",
-            icon_widget,
-        },
-    }
-end
 
 function WeatherLockscreen:createWeatherWidget()
-    logger.dbg("WeatherLockscreen: Creating widget")
-    local weather_data = self:fetchWeatherData()
-    local fallback = false
-
-    if not weather_data or not weather_data.current or not weather_data.current.icon_path then
-        logger.warn("WeatherLockscreen: No weather data available, trying fallback")
-        fallback = true
-        return self:createFallbackWidget(), fallback
-    end
-
-    -- Check display style setting
-    local display_style = G_reader_settings:readSetting("weather_display_style") or "default"
-    logger.dbg("WeatherLockscreen: Using display style: " .. display_style)
-
     -- Load appropriate display module
-    local display_module
-    if display_style == "card" then
-        display_module = require("display_card")
-    elseif display_style == "retro" then
-        display_module = require("display_retro")
-    elseif display_style == "reading" then
-        display_module = require("display_reading")
-    else
-        display_module = require("display_default")
-    end
+    -- aka the one i see you're using
+    display_module = require("display_card")
 
     return display_module:create(self, weather_data), fallback
 end
