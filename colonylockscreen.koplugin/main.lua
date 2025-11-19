@@ -1,7 +1,7 @@
 --[[
-    Weather Lockscreen Plugin for KOReader
+    Colony Lockscreen Plugin for KOReader
 
-    Displays weather information on the sleep screen.
+    Displays colony information on the sleep screen.
 
     Author: Andreas Lösel
     License: GNU AGPL v3
@@ -28,26 +28,26 @@ local logger = require("logger")
 local _ = require("gettext")
 local T = require("ffi/util").template
 
-local WeatherLockscreen = WidgetContainer:extend {
-    name = "weatherlockscreen",
+local ColonyLockscreen = WidgetContainer:extend {
+    name = "colonylockscreen",
     is_doc_only = false,
 }
 
-function WeatherLockscreen:getPluginDir()
+function ColonyLockscreen:getPluginDir()
     local callerSource = debug.getinfo(2, "S").source
     if callerSource:find("^@") then
         return callerSource:gsub("^@(.*)/[^/]*", "%1")
     end
 end
 
-function WeatherLockscreen:init()
+function ColonyLockscreen:init()
     self.ui.menu:registerToMainMenu(self)
     self:patchScreensaver()
 end
 
-function WeatherLockscreen:addToMainMenu(menu_items)
-    menu_items.weather_lockscreen = {
-        text = _("Weather Lockscreen"),
+function ColonyLockscreen:addToMainMenu(menu_items)
+    menu_items.colony_lockscreen = {
+        text = _("Colony Lockscreen"),
         sub_item_table_func = function()
             return self:getSubMenuItems()
         end,
@@ -55,27 +55,27 @@ function WeatherLockscreen:addToMainMenu(menu_items)
     }
 end
 
-function WeatherLockscreen:getSubMenuItems()
+function ColonyLockscreen:getSubMenuItems()
     local menu_items = {
     }
     return menu_items
 end
 
-function WeatherLockscreen:patchScreensaver()
+function ColonyLockscreen:patchScreensaver()
     -- Store reference to self for use in closures
     local plugin_instance = self
 
-    -- Hook into Screensaver.show() to handle "weather" type
+    -- Hook into Screensaver.show() to handle "colony" type
     local Screensaver = require("ui/screensaver")
 
     -- Save original show method if not already saved
-    if not Screensaver._orig_show_before_weather then
-        Screensaver._orig_show_before_weather = Screensaver.show
+    if not Screensaver._orig_show_before_colony then
+        Screensaver._orig_show_before_colony = Screensaver.show
     end
 
     Screensaver.show = function(screensaver_instance)
-        if screensaver_instance.screensaver_type == "weather" then
-            logger.dbg("WeatherLockscreen: Weather screensaver activated")
+        if screensaver_instance.screensaver_type == "colony" then
+            logger.dbg("ColonyLockscreen: Colony screensaver activated")
 
             -- Close any existing screensaver widget
             if screensaver_instance.screensaver_widget then
@@ -96,15 +96,15 @@ function WeatherLockscreen:patchScreensaver()
                 Device.orig_rotation_mode = nil
             end
 
-            -- Create weather widget
-            local weather_widget, fallback = plugin_instance:createWeatherWidget()
+            -- Create colony widget
+            local colony_widget, fallback = plugin_instance:createColonyWidget()
 
-            if weather_widget then
+            if colony_widget then
                 local bg_color = Blitbuffer.COLOR_WHITE
                 local display_style = "display_card"
 
                 screensaver_instance.screensaver_widget = ScreenSaverWidget:new {
-                    widget = weather_widget,
+                    widget = colony_widget,
                     background = bg_color,
                     covers_fullscreen = true,
                 }
@@ -112,29 +112,29 @@ function WeatherLockscreen:patchScreensaver()
                 screensaver_instance.screensaver_widget.dithered = true
 
                 UIManager:show(screensaver_instance.screensaver_widget, "full")
-                logger.dbg("WeatherLockscreen: Widget displayed")
+                logger.dbg("ColonyLockscreen: Widget displayed")
             else
-                logger.warn("WeatherLockscreen: Failed to create widget, falling back")
+                logger.warn("ColonyLockscreen: Failed to create widget, falling back")
                 screensaver_instance.screensaver_type = "disable"
-                Screensaver._orig_show_before_weather(screensaver_instance)
+                Screensaver._orig_show_before_colony(screensaver_instance)
             end
         else
-            Screensaver._orig_show_before_weather(screensaver_instance)
+            Screensaver._orig_show_before_colony(screensaver_instance)
         end
     end
 
-    -- Patch the screensaver menu to add weather option
+    -- Patch the screensaver menu to add colony option
     -- We need to override dofile to inject our menu item
-    if not _G._orig_dofile_before_weather then
+    if not _G._orig_dofile_before_colony then
         local orig_dofile = dofile
-        _G._orig_dofile_before_weather = orig_dofile
+        _G._orig_dofile_before_colony = orig_dofile
 
         _G.dofile = function(filepath)
             local result = orig_dofile(filepath)
 
             -- Check if this is the screensaver menu being loaded
             if filepath and filepath:match("screensaver_menu%.lua$") then
-                logger.dbg("WeatherLockscreen: Patching screensaver menu")
+                logger.dbg("ColonyLockscreen: Patching screensaver menu")
 
                 if result and result[1] and result[1].sub_item_table then
                     local wallpaper_submenu = result[1].sub_item_table
@@ -154,18 +154,18 @@ function WeatherLockscreen:patchScreensaver()
                         }
                     end
 
-                    -- Add weather option
-                    local weather_item = genMenuItem(_("Show The Colony on sleep screen"), "screensaver_type", "weather")
+                    -- Add colony option
+                    local colony_item = genMenuItem(_("Show The Colony on sleep screen"), "screensaver_type", "colony")
 
                     -- Insert before "Leave screen as-is" option (position 6)
-                    table.insert(wallpaper_submenu, 6, weather_item)
+                    table.insert(wallpaper_submenu, 6, colony_item)
 
-                    logger.dbg("WeatherLockscreen: Added weather option to screensaver menu")
+                    logger.dbg("ColonyLockscreen: Added colony option to screensaver menu")
                 end
 
                 -- Restore original dofile after patching
                 _G.dofile = orig_dofile
-                _G._orig_dofile_before_weather = nil
+                _G._orig_dofile_before_colony = nil
             end
 
             return result
@@ -174,12 +174,12 @@ function WeatherLockscreen:patchScreensaver()
 end
 
 
-function WeatherLockscreen:createWeatherWidget()
+function ColonyLockscreen:createColonyWidget()
     -- Load appropriate display module
     -- aka the one i see you're using
     display_module = require("display_card")
 
-    return display_module:create(self, weather_data), fallback
+    return display_module:create(self, colony_data), fallback
 end
 
-return WeatherLockscreen
+return ColonyLockscreen
