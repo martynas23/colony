@@ -32,9 +32,6 @@ local WeatherUtils = require("weather_utils")
 local WeatherLockscreen = WidgetContainer:extend {
     name = "weatherlockscreen",
     is_doc_only = false,
-    default_location = "London",
-    default_api_key = "637e03f814b440f782675255250411",
-    default_temp_scale = "C",
 }
 
 function WeatherLockscreen:getPluginDir()
