@@ -37,22 +37,11 @@ local WeatherLockscreen = WidgetContainer:extend {
     default_temp_scale = "C",
 }
 
-local WEATHER_ICON_SIZE = 200 -- Size of the weather icon in pixels
-
-function WeatherLockscreen:getCacheMaxAge()
-    return WeatherUtils:getCacheMaxAge()
-end
-
 function WeatherLockscreen:getPluginDir()
     return WeatherUtils:getPluginDir()
 end
 
-function WeatherLockscreen:installIcons()
-    return WeatherUtils:installIcons(function() return self:getPluginDir() end)
-end
-
 function WeatherLockscreen:init()
-    self:installIcons()
     self.ui.menu:registerToMainMenu(self)
     self:patchScreensaver()
 end
