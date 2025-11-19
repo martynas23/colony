@@ -185,27 +185,6 @@ function WeatherLockscreen:patchScreensaver()
     end
 end
 
--- Weather API functions
-function WeatherLockscreen:formatHourLabel(hour, twelve_hour_clock)
-    return WeatherUtils:formatHourLabel(hour, twelve_hour_clock)
-end
-
-function WeatherLockscreen:getMoonPhaseIcon(moon_phase)
-    return WeatherUtils:getMoonPhaseIcon(moon_phase)
-end
-
-function WeatherLockscreen:saveWeatherCache(weather_data)
-    return WeatherUtils:saveWeatherCache(weather_data)
-end
-
-function WeatherLockscreen:loadWeatherCache()
-    return WeatherUtils:loadWeatherCache(function() return self:getCacheMaxAge() end)
-end
-
-function WeatherLockscreen:clearCache()
-    return WeatherUtils:clearCache()
-end
-
 function WeatherLockscreen:createHeaderWidgets(header_font_size, header_margin, weather_data, text_color, is_cached)
     local header_widgets = {}
     local show_header = G_reader_settings:nilOrTrue("weather_show_header")
