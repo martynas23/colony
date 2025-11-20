@@ -1,5 +1,6 @@
 local TextWidget = require("ui/widget/textwidget")
 local VerticalGroup = require("ui/widget/verticalgroup")
+local TopContainer = require("ui/widget/container/topcontainer")
 local CenterContainer = require("ui/widget/container/centercontainer")
 local OverlapGroup = require("ui/widget/overlapgroup")
 local Font = require("ui/font")
@@ -8,25 +9,27 @@ local Screen = Device.screen
 
 local ColonySimulator = {}
 
+-- ui fonts 
+local FontTitle = Font:getFace("cfont", 40)
+local FontBody  = Font:getFace("cfont", 16)
+
 -- Load/save
 local function loadGame()
     local f = io.open("colony_save.txt", "r")
     if f then
-        local line1 = f:read("*l")
-        local line2 = f:read("*l")
-        local line3 = f:read("*l")
-        local line4 = f:read("*l")
-        local line5 = f:read("*l")
-        local line6 = f:read("*l")
+        local lines = {}
+        for i = 1, 6 do
+            lines[i] = f:read("*l")
+        end
         f:close()
-        if line1 and line2 and line3 and line4 and line5 and line6 then
+        if lines[1] and lines[2] and lines[3] and lines[4] and lines[5] and lines[6] then
             return {
-                turn = tonumber(line1),
-                population = tonumber(line2),
-                food = tonumber(line3),
-                wood = tonumber(line4),
-                stone = tonumber(line5),
-                morale = tonumber(line6)
+                turn = tonumber(lines[1]),
+                population = tonumber(lines[2]),
+                food = tonumber(lines[3]),
+                wood = tonumber(lines[4]),
+                serek = tonumber(lines[5]),
+                morale = tonumber(lines[6])
             }
         end
     end
@@ -36,24 +39,20 @@ end
 local function saveGame(state)
     local f = io.open("colony_save.txt", "w")
     if f then
-        f:write(tostring(state.turn) .. "\n")
-        f:write(tostring(state.population) .. "\n")
-        f:write(tostring(state.food) .. "\n")
-        f:write(tostring(state.wood) .. "\n")
-        f:write(tostring(state.stone) .. "\n")
-        f:write(tostring(state.morale) .. "\n")
+        f:write(string.format("%d\n%d\n%d\n%d\n%d\n%d\n",
+            state.turn, state.population, state.food,
+            state.wood, state.serek, state.morale))
         f:close()
     end
 end
 
---new save file stats if there's not one available
-
+-- Initialize state
 if not ColonySimulator.state then
     local saved = loadGame()
     if saved and saved.population then
         ColonySimulator.state = saved
     else
-        ColonySimulator.state = { turn = 1, population = 5, food = 20, wood = 15, stone = 10, morale = 75 }
+        ColonySimulator.state = { turn = 1, population = 5, food = 20, wood = 15, serek = 10, morale = 75 }
     end
 end
 
@@ -73,7 +72,7 @@ local function simulateTurn(state)
     local workers = math.floor(state.population * 0.6)
     state.food = state.food + math.random(4, 7) * workers
     state.wood = state.wood + math.random(1, 3) * workers
-    state.stone = state.stone + math.random(0, 2) * workers
+    state.serek = state.serek + math.random(0, 2) * workers
 
     -- Morale effects
     if state.food < 0 then
@@ -91,10 +90,10 @@ local function simulateTurn(state)
         if math.random(1, 100) < 20 then state.population = math.max(1, state.population - 1) end
     end
 
-    -- Clamp morale
+    -- this is so morale cannot leave bounds
     state.morale = clamp(state.morale, 0, 100)
 
-    --random event
+    --random events - needs major rebalancing
     local event_msg = ""
     local event_roll = math.random(1, 100)
     if event_roll < 8 then
@@ -113,56 +112,93 @@ local function simulateTurn(state)
     return event_msg
 end
 
+-- Create display
 function ColonySimulator:create()
     local state = ColonySimulator.state
-
-    -- Simulate turn
     local event = simulateTurn(state)
     saveGame(state)
 
-    -- Build display
-    local lines = {}
-    lines[1] = ""
-    lines[2] = "colony survival alpha"
-    lines[3] = ""
-    lines[4] = string.format(" day %-23d", state.turn)
-    lines[5] = "------------------------------"
-
-    -- Resources
-    lines[6] = string.format("colonists:%2d", state.population)
-    lines[7] = string.format("food:%3d", state.food)
-    lines[8] = string.format("wood:%3d", state.wood)
-    lines[9] = string.format("stone:%3d", state.stone)
-    lines[10] = string.format("morale:%2d%%", state.morale)
-    lines[11] = "------------------------------"
-
-    -- Status
     local status = "OK"
     if state.morale < 30 then status = "BAD"
     elseif state.morale > 80 then status = "GREAT" end
-    lines[12] = string.format("colony status is %-20s ", status)
-    if event ~= "" then
-        lines[13] = string.format(" %-28s ", event)
-    else
-        lines[13] = "                            "
-    end
-    lines[14] = "------------------------------"
-    lines[15] = ""
-    lines[16] = ""
 
-    -- Create widgets
+----------------------------title and days--------------------------------
+
+local titleWidget = TextWidget:new{
+    text = "Kosmolit's Colonists",
+    face = FontTitle,
+    align = "center"
+}
+
+
+local titleAndDays = TextWidget:new{
+    text = "Kosmolit's Colonists  " .. string.format("day %d", state.turn),
+    face = FontTitle,
+    align = "center"
+}
+
+
+local separator = TextWidget:new{
+    text = string.rep("-", 120),
+    face = FontBody,
+    align = "center"
+}
+
+
+local topGroup = VerticalGroup:new{
+    align = "center",  -- just in case xd
+    titleAndDays,
+    separator
+}
+
+local titleContainer = TopContainer:new{
+    dimen = Screen:getSize(),
+    topGroup
+}
+
+------------------------------------------------------------------------
+
+
+--game stats 2025-11-20 ill be moving most of this shit around especially resources gonna be at the bottom very soon
+    local lines = {
+        
+        "------------------------------",
+        string.format("colonists:%2d", state.population),
+        string.format("food:%3d", state.food),
+        string.format("wood:%3d", state.wood),
+        string.format("serek:%3d", state.serek),
+        string.format("morale:%2d%%", state.morale),
+        "------------------------------",
+        string.format("colony status is %-20s", status),
+        event ~= "" and string.format(" %-28s", event) or "                            ",
+        "------------------------------"
+    }
+
     local widgets = {}
     for _, line in ipairs(lines) do
         table.insert(widgets, TextWidget:new{
             text = line,
-            face = Font:getFace("cfont", 16),
+            face = FontBody
         })
     end
 
-    local group = VerticalGroup:new{ align = "center", table.unpack(widgets) }
-    local container = CenterContainer:new{ dimen = Screen:getSize(), group, }
+    local infoGroup = VerticalGroup:new{
+        align = "center",
+        table.unpack(widgets)
+    }
 
-    return OverlapGroup:new{ dimen = Screen:getSize(), container, }
+    local infoContainer = CenterContainer:new{
+        dimen = Screen:getSize(),
+        infoGroup
+    }
+
+    -- combine top and middle
+    return OverlapGroup:new{
+        dimen = Screen:getSize(),
+        titleContainer,
+        infoContainer
+    }
 end
 
 return ColonySimulator
+
