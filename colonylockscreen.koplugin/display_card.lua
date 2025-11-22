@@ -2,18 +2,25 @@ local TextWidget = require("ui/widget/textwidget")
 local VerticalGroup = require("ui/widget/verticalgroup")
 local TopContainer = require("ui/widget/container/topcontainer")
 local CenterContainer = require("ui/widget/container/centercontainer")
+local BottomContainer = require("ui/widget/container/bottomcontainer") 
 local OverlapGroup = require("ui/widget/overlapgroup")
 local Font = require("ui/font")
 local Device = require("device")
 local Screen = Device.screen
+local LineWidget = require("ui/widget/linewidget")
+local Size = require("ui/size")
+local FrameContainer = require("ui/widget/container/framecontainer")
+local Widget = require("ui/widget/widget")
 
 local ColonySimulator = {}
 
 -- ui fonts 
 local FontTitle = Font:getFace("cfont", 40)
 local FontBody  = Font:getFace("cfont", 16)
+local FontStats = Font:getFace("cfont", 30)
 
--- Load/save
+
+
 local function loadGame()
     local f = io.open("colony_save.txt", "r")
     if f then
@@ -28,7 +35,7 @@ local function loadGame()
                 population = tonumber(lines[2]),
                 food = tonumber(lines[3]),
                 wood = tonumber(lines[4]),
-                serek = tonumber(lines[5]),
+                gold = tonumber(lines[5]),
                 morale = tonumber(lines[6])
             }
         end
@@ -41,22 +48,22 @@ local function saveGame(state)
     if f then
         f:write(string.format("%d\n%d\n%d\n%d\n%d\n%d\n",
             state.turn, state.population, state.food,
-            state.wood, state.serek, state.morale))
+            state.wood, state.gold, state.morale))
         f:close()
     end
 end
 
--- Initialize state
+
 if not ColonySimulator.state then
     local saved = loadGame()
     if saved and saved.population then
         ColonySimulator.state = saved
     else
-        ColonySimulator.state = { turn = 1, population = 5, food = 20, wood = 15, serek = 10, morale = 75 }
+        ColonySimulator.state = { turn = 1, population = 5, food = 20, wood = 15, gold = 10, morale = 75 }
     end
 end
 
--- Game logic
+--game logic
 local function clamp(val, min, max)
     if val < min then return min end
     if val > max then return max end
@@ -64,17 +71,17 @@ local function clamp(val, min, max)
 end
 
 local function simulateTurn(state)
-    -- Food consumption
+    -- food
     local food_needed = state.population * 2
     state.food = state.food - food_needed
 
-    -- Gather resources
+    -- resources per day
     local workers = math.floor(state.population * 0.6)
     state.food = state.food + math.random(4, 7) * workers
     state.wood = state.wood + math.random(1, 3) * workers
-    state.serek = state.serek + math.random(0, 2) * workers
+    state.gold = state.gold + math.random(0, 2) * workers
 
-    -- Morale effects
+    -- morale
     if state.food < 0 then
         state.morale = state.morale - 15
         state.population = math.max(1, state.population - 1)
@@ -83,29 +90,28 @@ local function simulateTurn(state)
         state.morale = state.morale + 3
     end
 
-    -- Population growth
+    -- colonist growth
     if state.morale > 80 and state.food > 30 then
         if math.random(1, 100) < 30 then state.population = state.population + 1 end
     elseif state.morale < 30 then
         if math.random(1, 100) < 20 then state.population = math.max(1, state.population - 1) end
     end
 
-    -- this is so morale cannot leave bounds
     state.morale = clamp(state.morale, 0, 100)
 
-    --random events - needs major rebalancing
+    -- random events
     local event_msg = ""
     local event_roll = math.random(1, 100)
     if event_roll < 8 then
         state.population = state.population + math.random(1, 2)
-        event_msg = "oyem some new schmuckkers came over"
+        event_msg = "oyesyes wem got some new schmuckkers"
     elseif event_roll < 15 then
         local loss = math.floor(state.food * 0.25)
         state.food = state.food - loss
-        event_msg = "fuck some food spoiled"
+        event_msg = "gedi szmatstwo we lost food"
     elseif event_roll < 22 then
         state.wood = state.wood + math.random(8, 15)
-        event_msg = "ayesyes we got some lumber"
+        event_msg = "oyempthve got wood"
     end
 
     state.turn = state.turn + 1
@@ -122,61 +128,78 @@ function ColonySimulator:create()
     if state.morale < 30 then status = "BAD"
     elseif state.morale > 80 then status = "GREAT" end
 
-----------------------------title and days--------------------------------
+---------------------------- top bar -------------------------------
+    local titleAndDays = TextWidget:new{
+        text = "Kosmolit's Colonists  | Day " .. state.turn,
+        face = FontTitle,
+        align = "center",
+        halign = "center",
+    }
 
-local titleWidget = TextWidget:new{
-    text = "Kosmolit's Colonists",
-    face = FontTitle,
-    align = "center"
-}
+    local topSeparatorTop = LineWidget:new{ dimen = { w = Screen:getWidth(), h = 3 } }
+    local topSeparatorBottom = LineWidget:new{ dimen = { w = Screen:getWidth(), h = 3 } }
+    local topPadding = Widget:new{ dimen = { w = 0, h = 10 } }
 
+    local topGroup = VerticalGroup:new{
+        halign = "center",
+        topPadding,
+        topSeparatorTop,
+        titleAndDays,
+        topSeparatorBottom,
+    }
 
-local titleAndDays = TextWidget:new{
-    text = "Kosmolit's Colonists  " .. string.format("day %d", state.turn),
-    face = FontTitle,
-    align = "center"
-}
-
-
-local separator = TextWidget:new{
-    text = string.rep("-", 120),
-    face = FontBody,
-    align = "center"
-}
-
-
-local topGroup = VerticalGroup:new{
-    align = "center",  -- just in case xd
-    titleAndDays,
-    separator
-}
-
-local titleContainer = TopContainer:new{
-    dimen = Screen:getSize(),
-    topGroup
-}
-
+    local titleContainer = TopContainer:new{
+        dimen = Screen:getSize(),
+        topGroup
+    }
 ------------------------------------------------------------------------
 
+---------------------------- bottom bar ----------------------------
+    local statsText = string.format(
+        "Pop:%d  F:%d  W:%d  G:%d  M:%d%%",
+        state.population,
+        state.food,
+        state.wood,
+        state.gold,
+        state.morale
+    )
 
---game stats 2025-11-20 ill be moving most of this shit around especially resources gonna be at the bottom very soon
-    local lines = {
-        
-        "------------------------------",
-        string.format("colonists:%2d", state.population),
-        string.format("food:%3d", state.food),
-        string.format("wood:%3d", state.wood),
-        string.format("serek:%3d", state.serek),
-        string.format("morale:%2d%%", state.morale),
+    local statsWidget = TextWidget:new{
+        text = statsText,
+        face = FontStats,
+        align = "center",
+        halign = "center",
+    }
+
+    local bottomSeparatorTop = LineWidget:new{ dimen = { w = Screen:getWidth(), h = 3 } }
+    local bottomSeparatorBottom = LineWidget:new{ dimen = { w = Screen:getWidth(), h = 3 } }
+    local bottomPadding = Widget:new{ dimen = { w = 0, h = 10 } }
+
+    local bottomGroup = VerticalGroup:new{
+        halign = "center",
+        bottomPadding,
+        bottomSeparatorTop,
+        statsWidget,
+        bottomSeparatorBottom,
+    }
+
+    local bottomContainer = BottomContainer:new{
+        dimen = Screen:getSize(),
+        bottomGroup
+    }
+------------------------------------------------------------------------
+
+---------------------------- main content / info -------------------
+    local infoLines = {
         "------------------------------",
         string.format("colony status is %-20s", status),
         event ~= "" and string.format(" %-28s", event) or "                            ",
         "------------------------------"
     }
 
-    local widgets = {}
-    for _, line in ipairs(lines) do
-        table.insert(widgets, TextWidget:new{
+    local infoWidgets = {}
+    for _, line in ipairs(infoLines) do
+        table.insert(infoWidgets, TextWidget:new{
             text = line,
             face = FontBody
         })
@@ -184,19 +207,20 @@ local titleContainer = TopContainer:new{
 
     local infoGroup = VerticalGroup:new{
         align = "center",
-        table.unpack(widgets)
+        table.unpack(infoWidgets)
     }
 
     local infoContainer = CenterContainer:new{
         dimen = Screen:getSize(),
         infoGroup
     }
+------------------------------------------------------------------------
 
-    -- combine top and middle
     return OverlapGroup:new{
         dimen = Screen:getSize(),
         titleContainer,
-        infoContainer
+        infoContainer,
+        bottomContainer
     }
 end
 
